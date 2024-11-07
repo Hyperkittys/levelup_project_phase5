@@ -66,15 +66,18 @@
 (원인은 AI가 할루시네이션 코드{가짜코드}를 제공한것으로 추정하고 있습니다.)
 또 이번에는 기존 app.js에 모든 기능을 구현하는것이 아닌 기능별로 파일을 분리시켜 모듈화를 진행하였습니다. 확실히 이렇게 하니 유지보수성이 높아진것 같았습니다. 
 
-5단계: CI/CD 및 DevOps 구축
+5단계: IaC를 활용한 CI/CD 및 DevOps 구축
 
-	•	목표: 애플리케이션 개발 및 배포 자동화 과정 익히기
+	•	목표: 애플리케이션 개발 및 배포,인프라 구성 자동화 과정 익히기
 	•	주요 내용:
 	•	CI/CD 파이프라인 구축 (GitHub Actions, Jenkins 등)
-	•	코드 변경 시 자동으로 Docker 이미지 빌드 및 ECS/Fargate에 배포
+        •	Terraform을 이용한 인프라 자동화
+	•	인프라를 코드로 관리 및 코드 변경 시 자동으로 Docker 이미지 빌드 및 ECS/Fargate에 배포
 	•	AWS CloudWatch로 애플리케이션 상태 모니터링 및 로그 관리
+ 	•	IaC를 통한 버전 관리와 복구 용이성 확보
 	•	Slack 연동: 팀 슬랙 채널과 연동하여 신규 가입자 알림, 오토스케일링 이벤트 알림을 Slack 메시지로 띄우기
-	•	실습: 간단한 GitHub Actions 워크플로우를 만들어 코드 변경 시 자동 배포 설정하고, AWS CloudWatch 알림을 Slack으로 전달받기
+	•	실습: Terraform 또는 CloudFormation을 사용해 ECS와 API Gateway를 포함한 전체 인프라를 코드로 구성하고
+ 		AWS CodePipeline을 사용하여 자동배포 구성, AWS CloudWatch 알림을 Slack으로 전달받기
 
 6단계: API Gateway 및 사용량 기반 과금 시스템
 
@@ -85,16 +88,6 @@
 	•	API Gateway와 Lambda, CloudWatch 연동
 	•	사용량 기반의 결제 시스템 구현 (Stripe 등 결제 API 연동)
 	•	실습: API Gateway를 통해 특정 요청에 대해 사용량 기반 과금 시스템 구현
-
-7단계: Infrastructure as Code (IaC)
-
-	•	목표: 클라우드 인프라를 코드로 관리하는 방법 익히기
-	•	주요 내용:
-	•	AWS CloudFormation 또는 Terraform을 이용한 인프라 자동화
-	•	ECS, API Gateway, Lambda 등의 인프라를 코드로 관리 및 배포
-	•	자동화된 환경 구축 (개발 환경, 테스트 환경, 프로덕션 환경)
-	•	IaC를 통한 버전 관리와 복구 용이성 확보
-	•	실습: Terraform 또는 CloudFormation을 사용해 ECS와 API Gateway를 포함한 전체 인프라를 코드로 구성하고, 이를 통한 자동화 배포
 
 8단계: 최종 프로젝트: 구독형 SaaS 개발 및 포트폴리오
 
