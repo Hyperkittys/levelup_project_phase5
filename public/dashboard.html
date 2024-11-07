@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>대시보드</title>
+</head>
+<body>
+    <h1>대시보드</h1>
+    <p>로그인에 성공하셨습니다!</p>
+    <button id="logoutButton">로그아웃</button>
+
+    <script>
+        document.getElementById('logoutButton').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/logout', { method: 'POST' });
+                if (response.ok) {
+                    window.location.href = '/';  // 로그아웃 후 메인 페이지로 리다이렉트
+                } else {
+                    console.error('로그아웃 실패');
+                }
+            } catch (error) {
+                console.error('로그아웃 중 오류 발생:', error);
+            }
+        });
+    </script>
+</body>
+</html>

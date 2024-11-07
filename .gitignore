@@ -1,0 +1,44 @@
+# Terraform 관련 파일
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# 변수 파일 (민감 정보 포함 가능)
+terraform.tfvars
+terraform.tfvars.json
+
+# Lambda 함수 패키징 파일
+/lambda/*.zip
+
+# GitHub Actions 워크플로우 로그 (선택 사항)
+.github/workflows/*.log
+
+# 운영 체제 별 파일
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# 편집기 및 IDE 관련 파일
+.vscode/
+.idea/
+*.swp
+*~
+
+# Node.js 관련 파일
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# 기타 임시 파일
+*.log
+*.tmp 
+
+# Node.js 관련 파일
+node_modules/
+npm-debug.log
+yarn-error.log

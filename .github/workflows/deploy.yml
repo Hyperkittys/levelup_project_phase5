@@ -1,0 +1,52 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v3
+
+      - name: AWS 로그인
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region: ap-northeast-2
+
+      - name: Terraform 초기화
+        run: terraform init
+        working-directory: ./phase5
+
+      - name: Terraform 적용
+        id: apply
+        run: terraform apply -auto-approve
+        working-directory: ./phase5
+
+      - name: ECR 리포지토리 URL 가져오기
+        run: echo "ECR_REPOSITORY_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
+        working-directory: ./phase5
+
+      - name: Docker 로그인
+        run: |
+          aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin $ECR_REPOSITORY_URL
+
+      - name: Docker 이미지 빌드
+        run: |
+          docker build -t levelup-project:latest .
+
+      - name: Docker 이미지 태그
+        run: |
+          docker tag levelup-project:latest $ECR_REPOSITORY_URL:latest
+
+      - name: Docker 이미지 푸시
+        run: |
+          docker push $ECR_REPOSITORY_URL:latest
+
+      - name: ECS 서비스 업데이트
+        run: |
+          aws ecs update-service --cluster Levelup-Project --service app-service --force-new-deployment
