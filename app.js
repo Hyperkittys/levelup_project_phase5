@@ -1,15 +1,20 @@
+require('dotenv').config();  // 환경 변수 로드
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
+app.use(cors({
+  origin: 'https://hyperkittys.shop',  // 허용할 도메인
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],  // 허용할 HTTP 메서드
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Supabase 클라이언트 설정
 const supabaseUrl = 'https://quxyypgxxdpbwmadmhlh.supabase.co';
 const supabaseKey = process.env.SUPABASE_KEY;
-// console.log('SUPABASE_KEY:', supabaseKey); // 이 라인 제거 (보안상 위험)
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -66,7 +71,7 @@ app.get('/protected', authenticateToken, (req, res) => {
   res.json({ message: '보호된 데이터에 접근했습니다', user: req.user });
 });
 
-// 루트 경로 처리 (새로 추가)
+// 루트 경로 처리
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -78,8 +83,7 @@ app.get('/auth.html', (req, res) => {
 
 // 로그아웃 엔드포인트 추가
 app.post('/logout', (req, res) => {
-    // 서버 측에서 할 일이 없으므로 간단히 성공 응답만 보냅니다.
-    res.json({ message: '로그아웃 성공' });
+  res.json({ message: '로그아웃 성공' });
 });
 
 // 대시보드 라우트 추가
@@ -106,6 +110,8 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'healthy' });
 });
 
-app.listen(3000, () => {
-  console.log('서버가 포트 3000에서 실행 중입니다.');
+// 서버 시작
+const PORT = process.env.PORT || 3000;  // 환경 변수에서 포트를 가져오고, 없으면 3000 사용
+app.listen(PORT, () => {
+  console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
 });

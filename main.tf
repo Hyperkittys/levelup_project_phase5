@@ -106,8 +106,8 @@ resource "aws_ecs_task_definition" "app" {
   family                   = "app"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "512"
-  memory                   = "1024"
+  cpu                      = "256"
+  memory                   = "512"
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
 
   container_definitions = jsonencode([{
@@ -132,6 +132,75 @@ resource "aws_ecs_task_definition" "app" {
   }])
 }
 
+# Application Load Balancer 생성
+resource "aws_lb" "app" {
+  name               = "app-lb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.lb.id]
+  subnets            = aws_subnet.public[*].id
+
+  enable_deletion_protection = false
+
+  tags = {
+    Name = "app-lb"
+  }
+}
+
+# Target Group 생성
+resource "aws_lb_target_group" "app" {
+  name        = "app-tg"
+  port        = 3000
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
+
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 10
+    interval            = 30
+    matcher             = "200"
+    path                = "/health"  # 변경됨
+    protocol            = "HTTP"
+    timeout             = 5
+  }
+}
+
+# Load Balancer Listener 생성 (HTTPS)
+resource "aws_lb_listener" "app" {
+  load_balancer_arn = aws_lb.app.arn
+  port              = "443"  # HTTPS 포트
+  protocol          = "HTTPS"
+
+  ssl_policy = "ELBSecurityPolicy-2016-08"  # SSL 정책 설정
+  certificate_arn = "arn:aws:acm:ap-northeast-2:058264064839:certificate/ecbaf27a-3ac0-4172-af70-00596ef0c90b"  # ACM 인증서 ARN을 수동으로 입력
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+# Load Balancer Listener 생성 (HTTP)
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.app.arn
+  port              = "80"  # HTTP 포트
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+    redirect {
+      host        = "#{host}"
+      path        = "/"
+      port        = "443"
+      protocol    = "HTTPS"
+      query       = "#{query}"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+# ECS 서비스 생성
 resource "aws_ecs_service" "app" {
   name            = "app-service"
   cluster         = aws_ecs_cluster.main.id
@@ -159,66 +228,6 @@ resource "aws_ecs_service" "app" {
   deployment_minimum_healthy_percent = 100
 
   depends_on = [aws_lb_listener.app]
-}
-
-resource "aws_lb" "app" {
-  name               = "app-lb"
-  internal           = false
-  load_balancer_type = "application"
-  subnets            = aws_subnet.public[*].id
-  security_groups    = [aws_security_group.lb.id]
-}
-
-resource "aws_lb_target_group" "app" {
-  name        = "app-tg"
-  port        = 3000
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
-  target_type = "ip"
-
-  health_check {
-    healthy_threshold   = 2
-    unhealthy_threshold = 10
-    interval            = 30
-    matcher             = "200"
-    path                = "/health"  // 변경됨
-    protocol            = "HTTP"
-    timeout             = 5
-  }
-}
-
-resource "aws_lb_listener" "app" {
-  load_balancer_arn = aws_lb.app.arn
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.app.arn
-  }
-}
-
-resource "aws_appautoscaling_target" "ecs_target" {
-  max_capacity       = 4
-  min_capacity       = 1
-  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.app.name}"
-  scalable_dimension = "ecs:service:DesiredCount"
-  service_namespace  = "ecs"
-}
-
-resource "aws_appautoscaling_policy" "ecs_policy" {
-  name               = "scale-down"
-  policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.ecs_target.resource_id
-  scalable_dimension = aws_appautoscaling_target.ecs_target.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.ecs_target.service_namespace
-
-  target_tracking_scaling_policy_configuration {
-    predefined_metric_specification {
-      predefined_metric_type = "ECSServiceAverageCPUUtilization"
-    }
-    target_value = 70.0
-  }
 }
 
 resource "aws_cloudwatch_log_group" "ecs_app" {
@@ -301,4 +310,150 @@ resource "aws_sns_topic_subscription" "lambda_sub" {
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "lambda"
   endpoint  = aws_lambda_function.sns_to_slack.arn
+}
+
+# IAM 역할 생성 (CodeBuild)
+resource "aws_iam_role" "codebuild_role" {
+  name = "codebuild_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Effect = "Allow",
+        Principal = {
+          Service = "codebuild.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# CodeBuild에 필요한 정책 연결
+resource "aws_iam_role_policy_attachment" "codebuild_policy" {
+  role       = aws_iam_role.codebuild_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess"  # 수정된 정책 ARN
+}
+
+# CodeBuild 프로젝트 생성
+resource "aws_codebuild_project" "app" {
+  name          = "levelup-project-build"
+  description   = "Build project for Levelup application"
+  build_timeout = 5
+
+  environment {
+    compute_type                = "BUILD_GENERAL1_SMALL"
+    image                       = "aws/codebuild/standard:5.0"  # 최신 표준 이미지
+    type                        = "LINUX_CONTAINER"
+    environment_variable {
+      name  = "AWS_DEFAULT_REGION"
+      value = "ap-northeast-2"
+    }
+  }
+
+  service_role = aws_iam_role.codebuild_role.arn
+
+  source {
+    type      = "GITHUB"
+    location  = "https://github.com/Hyperkittys/levelup_project_phase5.git"  # GitHub 리포지토리 URL
+    buildspec = "buildspec.yml"  # 빌드 사양 파일
+  }
+
+  artifacts {
+    type = "NO_ARTIFACTS"
+  }
+}
+
+# IAM 역할 생성 (CodePipeline)
+resource "aws_iam_role" "codepipeline_role" {
+  name = "codepipeline_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Effect = "Allow",
+        Principal = {
+          Service = "codepipeline.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# CodePipeline 생성
+resource "aws_codepipeline" "app" {
+  name     = "levelup-project-pipeline"
+  role_arn = aws_iam_role.codepipeline_role.arn  # CodePipeline 역할 사용
+
+  artifact_store {
+    location = aws_s3_bucket.artifacts.bucket  # S3 버킷 이름
+    type     = "S3"
+  }
+
+  stage {
+    name = "Source"
+    action {
+      name            = "Source"
+      category        = "Source"
+      owner           = "ThirdParty"
+      provider        = "GitHub"
+      version         = "1"  # GitHub 버전 1 사용
+      output_artifacts = ["source_output"]
+
+      configuration = {
+        Owner  = "Hyperkittys"
+        Repo   = "levelup_project_phase5"
+        Branch = "main"  # 사용할 브랜치
+        OAuthToken = "<your_github_token>"  # GitHub OAuth 토큰
+      }
+    }
+  }
+
+  stage {
+    name = "Build"
+    action {
+      name            = "Build"
+      category        = "Build"
+      owner           = "AWS"
+      provider        = "CodeBuild"
+      version         = "1"
+      input_artifacts = ["source_output"]
+      output_artifacts = ["build_output"]
+
+      configuration = {
+        ProjectName = aws_codebuild_project.app.name
+      }
+    }
+  }
+
+  stage {
+    name = "Deploy"
+    action {
+      name            = "Deploy"
+      category        = "Deploy"
+      owner           = "AWS"
+      provider        = "ECS"
+      version         = "1"
+      input_artifacts = ["build_output"]
+
+      configuration = {
+        ClusterName = aws_ecs_cluster.main.name
+        ServiceName = aws_ecs_service.app.name
+        FileName    = "imagedefinitions.json"  # 이미지 정의 파일
+      }
+    }
+  }
+}
+
+# S3 아티팩트 버킷 생성
+resource "aws_s3_bucket" "artifacts" {
+  bucket = "levelup-project-artifacts"  # 버킷 이름
+
+  tags = {
+    Name        = "Levelup Project Artifacts"
+    Environment = "Dev"
+  }
 }

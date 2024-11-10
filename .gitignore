@@ -7,6 +7,9 @@
 # 변수 파일 (민감 정보 포함 가능)
 terraform.tfvars
 terraform.tfvars.json
+buildspec.yml
+imagedefinitions.json
+.env
 
 # Lambda 함수 패키징 파일
 /lambda/*.zip
