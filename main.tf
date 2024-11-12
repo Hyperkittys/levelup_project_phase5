@@ -229,7 +229,34 @@ resource "aws_ecs_service" "app" {
 
   depends_on = [aws_lb_listener.app]
 }
+# 오토스케일링 타겟 설정
+resource "aws_appautoscaling_target" "ecs_service_target" {
+  max_capacity       = 10  # 최대 태스크 수
+  min_capacity       = 2   # 최소 태스크 수
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.app.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
 
+# 오토스케일링 정책 설정
+resource "aws_appautoscaling_policy" "scale_out" {
+  name                   = "scale-out"
+  policy_type           = "TargetTrackingScaling"
+  resource_id           = aws_appautoscaling_target.ecs_service_target.id
+  scalable_dimension     = "ecs:service:DesiredCount"
+  service_namespace      = "ecs"
+
+  target_tracking_scaling_policy_configuration {
+    target_value       = 80.0  # CPU 사용량 목표
+    scale_out_cooldown = 60
+    scale_in_cooldown  = 60
+
+    # PredefinedMetricSpecification 추가
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"  # ECS 서비스의 평균 CPU 사용량
+    }
+  }
+}
 resource "aws_cloudwatch_log_group" "ecs_app" {
   name              = "/ecs/app"
   retention_in_days = 14
@@ -457,3 +484,4 @@ resource "aws_s3_bucket" "artifacts" {
     Environment = "Dev"
   }
 }
+
